@@ -6,7 +6,6 @@ import {
   Car,
   Train,
   Ship,
-  Bus,
   Loader2,
   CheckCircle2,
   type LucideIcon,
@@ -19,7 +18,6 @@ const TRANSPORT_OPTIONS: { value: string; label: string; Icon: LucideIcon }[] =
     { value: "car", label: "Car", Icon: Car },
     { value: "train", label: "Train", Icon: Train },
     { value: "ship", label: "Ship", Icon: Ship },
-    { value: "bus", label: "Bus", Icon: Bus },
   ];
 
 const GEOCODE_DEBOUNCE_MS = 500;
@@ -76,8 +74,9 @@ export function TripForm({
           <StopRow
             key={stop.id}
             stop={stop}
-            index={index + 1}
+            index={index}
             isLastStop={index === stops.length - 1}
+            isStartingPoint={index === 0}
             onUpdate={(updates) => updateStop(stop.id, updates)}
             onRemove={() => onRemoveChapter(stop.id)}
             showRemoveButton={canRemoveChapter}
@@ -104,8 +103,8 @@ export function TripForm({
 
       <div className="mt-4 space-y-3 text-center">
         <p className="text-xs text-lavender-400">
-          {resolvedCount} of {stops.length} locations found. Need at least 2 to
-          save your adventure.
+          {resolvedCount} of {stops.length} destinations found. Need a Starting
+          Point and two Destinations to save your adventure.
         </p>
         <button
           type="button"
@@ -115,9 +114,10 @@ export function TripForm({
         >
           Save Adventure
         </button>
-        {!canGenerate && resolvedCount < 2 && (
+        {!canGenerate && resolvedCount < 3 && (
           <p className="text-xs text-lavender-500">
-            Complete at least 2 chapters (with locations found) to save.
+            Complete the Starting Point and at least two Destinations (with
+            destinations found) to save.
           </p>
         )}
       </div>
@@ -129,6 +129,7 @@ interface StopRowProps {
   stop: Stop;
   index: number;
   isLastStop: boolean;
+  isStartingPoint: boolean;
   onUpdate: (updates: Partial<Omit<Stop, "id">>) => void;
   onRemove: () => void;
   showRemoveButton: boolean;
@@ -140,6 +141,7 @@ function StopRow({
   stop,
   index,
   isLastStop,
+  isStartingPoint,
   onUpdate,
   onRemove,
   showRemoveButton,
@@ -234,6 +236,8 @@ function StopRow({
     setLocationInput(value);
   };
 
+  const showDateTransportPhoto = !isStartingPoint;
+
   return (
     <li className="relative rounded-none border-[4px] border-black bg-white/90 p-4 shadow-pixel-window transition-all duration-200">
       {/* Delete button: top-right, only when showRemoveButton (stops.length > 3) */}
@@ -250,34 +254,16 @@ function StopRow({
       )}
 
       <span className="font-pixel text-[10px] text-lavender-500 mb-3 block pr-10">
-        + Chapter {index}
+        {isStartingPoint ? "The Starting Point" : `+ Chapter ${index}`}
       </span>
 
-      {/* Grid: Location always; Date & Transport hidden on last stop */}
+      {/* Order: Date, Transport, Destination, Photo. Chapter 1: only Destination. */}
       <div
         className={`grid gap-3 transition-all duration-200 ${
-          isLastStop ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3"
+          isStartingPoint ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-3"
         }`}
       >
-        <div className="flex flex-col gap-1 min-w-0">
-          <label
-            htmlFor={`stop-${stop.id}-location`}
-            className="text-xs font-medium text-lavender-500 flex items-center gap-1.5"
-          >
-            <span className="text-base" aria-hidden>🌍</span>
-            Location
-          </label>
-          <input
-            id={`stop-${stop.id}-location`}
-            type="text"
-            value={locationInput}
-            onChange={(e) => handleLocationChange(e.target.value)}
-            placeholder="e.g. Paris, Tokyo"
-            className="w-full h-12 rounded-none border-2 border-black bg-lavender-100 px-3 text-sm text-lavender-500 placeholder:text-lavender-300 focus:border-pink-quest focus:outline-none focus:ring-2 focus:ring-pink-quest/30"
-          />
-        </div>
-
-        {!isLastStop && (
+        {showDateTransportPhoto && (
           <>
             <div className="flex flex-col gap-1 min-w-0">
               <label
@@ -321,7 +307,66 @@ function StopRow({
             </div>
           </>
         )}
+
+        <div className="flex flex-col gap-1 min-w-0">
+          <label
+            htmlFor={`stop-${stop.id}-location`}
+            className="text-xs font-medium text-lavender-500 flex items-center gap-1.5"
+          >
+            <span className="text-base" aria-hidden>🌍</span>
+            Destination
+          </label>
+          <input
+            id={`stop-${stop.id}-location`}
+            type="text"
+            value={locationInput}
+            onChange={(e) => handleLocationChange(e.target.value)}
+            placeholder="e.g. Paris, Tokyo"
+            className="w-full h-12 rounded-none border-2 border-black bg-lavender-100 px-3 text-sm text-lavender-500 placeholder:text-lavender-300 focus:border-pink-quest focus:outline-none focus:ring-2 focus:ring-pink-quest/30"
+          />
+        </div>
       </div>
+
+      {/* Photo: only for chapters 2+ */}
+      {showDateTransportPhoto && (
+        <div className="flex flex-wrap items-end gap-3 mt-3">
+          <div className="flex flex-col gap-1 min-w-0 flex-1">
+            <label
+              htmlFor={`stop-${stop.id}-photo`}
+              className="text-xs font-medium text-lavender-500 flex items-center gap-1.5"
+            >
+              <span className="text-base" aria-hidden>📷</span>
+              Photo
+            </label>
+            <input
+              id={`stop-${stop.id}-photo`}
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = () => {
+                  const dataUrl = reader.result as string;
+                  onUpdate({ image: dataUrl });
+                };
+                reader.readAsDataURL(file);
+                e.target.value = "";
+              }}
+              className="w-full max-w-[200px] rounded-none border-2 border-black bg-lavender-100 px-3 py-2 text-xs text-lavender-500 file:mr-2 file:rounded-none file:border-2 file:border-black file:bg-lavender-200 file:px-2 file:py-1 file:text-xs file:text-lavender-500"
+            />
+          </div>
+          {stop.image && (
+            <div className="shrink-0 rounded-none border-[4px] border-black bg-lavender-100 p-0.5 shadow-pixel-sm overflow-hidden">
+              <img
+                src={stop.image}
+                alt="Stop photo"
+                className="w-12 h-12 object-cover block"
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Last stop only: cute immersive text */}
       {isLastStop && (
@@ -351,7 +396,7 @@ function StopRow({
         )}
         {geocodeStatus === "error" && (
           <span className="text-red-500 text-xs">
-            Location not found
+            Destination not found
           </span>
         )}
       </p>

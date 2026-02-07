@@ -27,8 +27,11 @@ const INITIAL_STOPS: Stop[] = [
 const MAX_CHAPTERS = 30;
 const COMPOSITION_WIDTH = 800;
 const COMPOSITION_HEIGHT = 400;
-const DURATION_IN_FRAMES = 150;
 const FPS = 30;
+// TravelVideo: intro (45) + per segment 120 frames + quest 90
+const INTRO_FRAMES = 45;
+const SEGMENT_FRAMES = 120;
+const QUEST_FRAMES = 90;
 
 export default function Home() {
   const [stops, setStops] = useState<Stop[]>(INITIAL_STOPS);
@@ -83,6 +86,17 @@ export default function Home() {
     [stops]
   );
 
+  const durationInFrames = useMemo(() => {
+    const k = stops.filter(
+      (s) =>
+        s.coordinates != null &&
+        Number.isFinite(s.coordinates.lat) &&
+        Number.isFinite(s.coordinates.lng)
+    ).length;
+    if (k < 2) return 150;
+    return INTRO_FRAMES + (k - 1) * SEGMENT_FRAMES + QUEST_FRAMES;
+  }, [stops]);
+
   return (
     <div className="min-h-screen bg-strawberry-milk text-lavender-500 p-6 md:p-10">
       <main className="max-w-[600px] mx-auto flex flex-col gap-8 items-center">
@@ -101,7 +115,7 @@ export default function Home() {
               <Player
                 component={TravelVideo}
                 inputProps={{ stops }}
-                durationInFrames={DURATION_IN_FRAMES}
+                durationInFrames={durationInFrames}
                 compositionWidth={COMPOSITION_WIDTH}
                 compositionHeight={COMPOSITION_HEIGHT}
                 fps={FPS}
@@ -148,7 +162,7 @@ export default function Home() {
                     s.coordinates != null &&
                     Number.isFinite(s.coordinates.lat) &&
                     Number.isFinite(s.coordinates.lng)
-                ).length >= 2
+                ).length >= 3
               }
               onAddChapter={addChapter}
               canAddChapter={stops.length < MAX_CHAPTERS}
