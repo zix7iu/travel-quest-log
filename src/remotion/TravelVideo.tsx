@@ -7,6 +7,8 @@ import {
   AbsoluteFill,
   Img,
   staticFile,
+  Audio,
+  Sequence,
 } from "remotion";
 import {
   ComposableMap,
@@ -15,25 +17,35 @@ import {
 } from "react-simple-maps";
 import { getTotalDistanceMiles, getDaysBetween } from "@/utils/quest-stats";
 import { TravelHero } from "@/remotion/TravelHero";
-import { CameraFlash } from "@/remotion/components/CameraFlash";
+import { CameraShutter } from "@/remotion/components/CameraShutter";
 import type { Stop } from "@/types/trip";
 
 const WORLD_ATLAS_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
+// 9:16 vertical format
+const VIDEO_WIDTH = 1080;
+const VIDEO_HEIGHT = 1920;
+const PHOTO_AREA_HEIGHT = Math.floor(VIDEO_HEIGHT * 0.6); // top 60%
+const MAP_AREA_HEIGHT = VIDEO_HEIGHT - PHOTO_AREA_HEIGHT; // bottom 40%
+
+// Map logic: equirectangular 800x400 for lat/lng math
 const WIDTH = 800;
 const HEIGHT = 400;
 const FPS = 30;
 const CENTER_X = WIDTH / 2;
 const CENTER_Y = HEIGHT / 2;
+const MAP_SCALE = MAP_AREA_HEIGHT / HEIGHT;
+const MAP_OFFSET_X = (WIDTH * MAP_SCALE - VIDEO_WIDTH) / 2;
 
 // Intro: character waving at start
 const INTRO_FRAMES = 45;
-// Segment timeline: per segment = travel + zoom/flash (10) + photo (60 = 2s)
+// Segment timeline: 0–0.5s shutter close (15), 0.5s–2.5s photo (60), 2.5s shutter open (10)
 const TRAVEL_FRAMES = 50;
-const FLASH_FRAMES = 10;
-const PHOTO_FRAMES = 60;
-const ARRIVAL_FRAMES = FLASH_FRAMES + PHOTO_FRAMES;
+const SHUTTER_CLOSE_FRAMES = 15; // 0.5s
+const PHOTO_FRAMES = 60; // 2s
+const SHUTTER_OPEN_FRAMES = 10;
+const ARRIVAL_FRAMES = SHUTTER_CLOSE_FRAMES + PHOTO_FRAMES + SHUTTER_OPEN_FRAMES; // 85
 const SEGMENT_FRAMES = TRAVEL_FRAMES + ARRIVAL_FRAMES;
 const QUEST_FRAMES = 90;
 // Default scenery when user hasn't uploaded a photo for a stop
@@ -103,7 +115,7 @@ export interface TravelVideoProps {
   stops: Stop[];
 }
 
-type Phase = "travel" | "zoom" | "photo" | "quest";
+type Phase = "travel" | "zoom" | "photo" | "shutter_open" | "quest";
 
 function getPhase(
   frame: number,
@@ -112,6 +124,7 @@ function getPhase(
   phase: Phase;
   segmentIndex: number;
   localFrame: number;
+  arrivalLocalFrame: number;
   questStartFrame: number;
 } {
   const questStartFrame = INTRO_FRAMES + segmentCount * SEGMENT_FRAMES;
@@ -120,6 +133,7 @@ function getPhase(
       phase: "quest",
       segmentIndex: segmentCount - 1,
       localFrame: frame - questStartFrame,
+      arrivalLocalFrame: 0,
       questStartFrame,
     };
   }
@@ -127,13 +141,16 @@ function getPhase(
   const segmentIndex = Math.floor(journeyFrame / SEGMENT_FRAMES);
   const localFrame = journeyFrame - segmentIndex * SEGMENT_FRAMES;
   if (localFrame < TRAVEL_FRAMES) {
-    return { phase: "travel", segmentIndex, localFrame, questStartFrame };
+    return { phase: "travel", segmentIndex, localFrame, arrivalLocalFrame: 0, questStartFrame };
   }
   const arrivalLocal = localFrame - TRAVEL_FRAMES;
-  if (arrivalLocal < FLASH_FRAMES) {
-    return { phase: "zoom", segmentIndex, localFrame, questStartFrame };
+  if (arrivalLocal < SHUTTER_CLOSE_FRAMES) {
+    return { phase: "zoom", segmentIndex, localFrame, arrivalLocalFrame: arrivalLocal, questStartFrame };
   }
-  return { phase: "photo", segmentIndex, localFrame, questStartFrame };
+  if (arrivalLocal < SHUTTER_CLOSE_FRAMES + PHOTO_FRAMES) {
+    return { phase: "photo", segmentIndex, localFrame, arrivalLocalFrame: arrivalLocal, questStartFrame };
+  }
+  return { phase: "shutter_open", segmentIndex, localFrame, arrivalLocalFrame: arrivalLocal, questStartFrame };
 }
 
 export function TravelVideo({ stops }: TravelVideoProps) {
@@ -145,7 +162,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
   const K = stopsWithCoords.length;
   const segmentCount = Math.max(0, K - 1);
   const isIntro = frame < INTRO_FRAMES;
-  const { phase, segmentIndex, localFrame, questStartFrame } = getPhase(
+  const { phase, segmentIndex, localFrame, arrivalLocalFrame, questStartFrame } = getPhase(
     frame,
     segmentCount
   );
@@ -338,7 +355,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
   const xEnd = x1 + (x2 - x1) * travelProgress;
   const yEnd = y1 + (y2 - y1) * travelProgress;
 
-  // Pan & zoom: during travel center on hero (xEnd, yEnd) so transport stays roughly in center; at arrival zoom onto destination
+  // Pan & zoom: during travel center on hero; at arrival zoom onto destination
   const arrivalStartFrame =
     INTRO_FRAMES + segmentIndex * SEGMENT_FRAMES + TRAVEL_FRAMES;
   const zoomLocalFrame = frame - arrivalStartFrame;
@@ -359,7 +376,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
       : phase === "zoom"
         ? interpolate(
             zoomLocalFrame,
-            [0, FLASH_FRAMES],
+            [0, SHUTTER_CLOSE_FRAMES],
             [travelScale, arrivalScale],
             { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
           )
@@ -371,7 +388,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
       : phase === "zoom"
         ? interpolate(
             zoomLocalFrame,
-            [0, FLASH_FRAMES],
+            [0, SHUTTER_CLOSE_FRAMES],
             [xEnd, x2],
             { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
           )
@@ -382,7 +399,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
       : phase === "zoom"
         ? interpolate(
             zoomLocalFrame,
-            [0, FLASH_FRAMES],
+            [0, SHUTTER_CLOSE_FRAMES],
             [yEnd, y2],
             { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
           )
@@ -390,16 +407,28 @@ export function TravelVideo({ stops }: TravelVideoProps) {
 
   const mapTransform = `translate(${CENTER_X}px, ${CENTER_Y}px) scale(${scale}) translate(${-centerX}px, ${-centerY}px)`;
 
-  // Transport for this segment = how the user got TO the destination (toStop), per TripForm chapter transport field
+  // Transport for this segment = how the user got TO the destination (toStop)
   const currentTransport = (toStop.transport ?? "plane").toLowerCase();
   const destinationIndex = segmentIndex + 1;
   const isArrivingAtStartingPoint = destinationIndex === 0;
-  const showFlash = phase === "zoom" && !isArrivingAtStartingPoint;
-  const showPhoto = phase === "photo" && !isArrivingAtStartingPoint;
+  const showShutterClose = phase === "zoom" && !isArrivingAtStartingPoint;
+  const showPhoto = (phase === "photo" || phase === "shutter_open") && !isArrivingAtStartingPoint;
+
   const photoStop = toStop as Stop & { image?: string };
   const photoSrc = photoStop.image ?? DEFAULT_SCENERY;
+  // Typewriter: starts at 0.5s (frame 15 of arrival), over ~45 frames for destination, then date
+  const typewriterFrame = Math.max(0, arrivalLocalFrame - SHUTTER_CLOSE_FRAMES);
+  const destinationText = toStop.location || "Destination";
+  const dateText = toStop.date || "";
+  const destVisibleChars = Math.min(
+    destinationText.length,
+    Math.floor(interpolate(typewriterFrame, [0, 35], [0, destinationText.length + 1], { extrapolateRight: "clamp", extrapolateLeft: "clamp" }))
+  );
+  const dateVisibleChars = Math.min(
+    dateText.length,
+    Math.floor(interpolate(typewriterFrame, [35, 55], [0, dateText.length + 1], { extrapolateRight: "clamp", extrapolateLeft: "clamp" }))
+  );
   const bearing = bearingDeg(x1, y1, x2, y2);
-  // When traveling left (bearing in left hemisphere), flip horizontally and rotate so the icon stays right-side up
   const isLeftHemisphere =
     (bearing > 90 && bearing <= 180) || (bearing >= -180 && bearing < -90);
   const rotationDeg = isLeftHemisphere ? bearing - 180 : bearing;
@@ -408,99 +437,190 @@ export function TravelVideo({ stops }: TravelVideoProps) {
   return (
     <AbsoluteFill
       style={{
+        width: VIDEO_WIDTH,
+        height: VIDEO_HEIGHT,
         backgroundColor: "#FFF5F7",
-        alignItems: "center",
-        justifyContent: "center",
         overflow: "hidden",
       }}
     >
-      {/* Map background + route: pan & zoom so current segment / destination is centered */}
+      {/* Top 60%: pink banner + photo in heart-detail frame */}
       <div
         style={{
-          width: WIDTH,
-          height: HEIGHT,
-          position: "relative",
-          transform: mapTransform,
-          transformOrigin: "0 0",
+          position: "absolute",
+          left: 0,
+          top: 0,
+          width: VIDEO_WIDTH,
+          height: PHOTO_AREA_HEIGHT,
+          backgroundColor: "#FFF5F7",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        <WorldMapBackground />
-        <svg
-          width={WIDTH}
-          height={HEIGHT}
-          viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-          style={{ display: "block", position: "relative", zIndex: 1 }}
-        >
-          <line
-            x1={x1}
-            y1={y1}
-            x2={xEnd}
-            y2={yEnd}
-            stroke="#9B7EDE"
-            strokeWidth={3}
-            strokeLinecap="round"
-          />
-          <circle cx={x1} cy={y1} r={6} fill="#6b21a8" />
-          <circle cx={x2} cy={y2} r={6} fill="#6b21a8" />
-        </svg>
-        {/* Hero: only during travel or zoom (first moment), not during photo; gentle 5px float + face direction */}
-        {(phase === "travel" || (phase === "zoom" && zoomLocalFrame < 2)) && (
-          <div
-            style={{
-              position: "absolute",
-              left: Math.max(0, Math.min(WIDTH - 48, xEnd - 24)),
-              top: Math.max(0, Math.min(HEIGHT - 48, yEnd - 24)),
-              pointerEvents: "none",
-              zIndex: 2,
-              transform: `translateY(${5 * Math.sin(frame * 0.2)}px) rotate(${rotationDeg}deg) scale(${scaleX}, 1)`,
-            }}
-          >
-            <TravelHero transportType={currentTransport} width={48} height={48} />
-          </div>
+        {showPhoto && (
+          <>
+            {/* Pink pixel-art banner: Destination + Date, typewriter from 0.5s */}
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                top: 0,
+                right: 0,
+                padding: "20px 24px",
+                backgroundColor: "#ec4899",
+                borderBottom: "4px solid #1f2937",
+                zIndex: 2,
+              }}
+            >
+              <p
+                style={{
+                  fontFamily: "var(--font-press-start-2p), monospace",
+                  fontSize: 14,
+                  color: "#fff",
+                  margin: 0,
+                  textAlign: "center",
+                  textShadow: "2px 2px 0 #1a1a1a",
+                }}
+              >
+                {destinationText.slice(0, destVisibleChars)}
+                {destVisibleChars < destinationText.length && "|"}
+              </p>
+              <p
+                style={{
+                  fontFamily: "var(--font-press-start-2p), monospace",
+                  fontSize: 10,
+                  color: "#fff",
+                  margin: "8px 0 0",
+                  textAlign: "center",
+                  textShadow: "2px 2px 0 #1a1a1a",
+                }}
+              >
+                {dateText.slice(0, dateVisibleChars)}
+                {dateVisibleChars < dateText.length && "|"}
+              </p>
+            </div>
+            {/* Photo: center in top 60%, heart-detail pixel frame */}
+            <div
+              style={{
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+                display: "flex",
+                paddingTop: 100,
+              }}
+            >
+              <div
+                style={{
+                  border: "4px solid #ec4899",
+                  borderRadius: 16,
+                  backgroundColor: "#FFF5F7",
+                  padding: 12,
+                  boxShadow: "4px 4px 0 0 rgba(0,0,0,0.2)",
+                  position: "relative",
+                }}
+              >
+                <span style={{ position: "absolute", left: 8, top: 8, fontSize: 14, color: "#ec4899" }}>♥</span>
+                <span style={{ position: "absolute", right: 8, top: 8, fontSize: 14, color: "#ec4899" }}>♥</span>
+                <span style={{ position: "absolute", left: 8, bottom: 8, fontSize: 14, color: "#ec4899" }}>♥</span>
+                <span style={{ position: "absolute", right: 8, bottom: 8, fontSize: 14, color: "#ec4899" }}>♥</span>
+                <Img
+                  src={photoSrc}
+                  alt={toStop.location || "Stop"}
+                  style={{
+                    width: 400,
+                    height: 300,
+                    objectFit: "cover",
+                    display: "block",
+                    imageRendering: "pixelated",
+                    filter: "contrast(1.1) brightness(1.1)",
+                    borderRadius: 8,
+                  }}
+                />
+              </div>
+            </div>
+          </>
         )}
       </div>
 
-      {/* Camera flash when zooming (at arrival) */}
-      {showFlash && (
-        <CameraFlash startFrame={arrivalStartFrame} />
-      )}
-
-      {/* Stop photo: Kawaii Pixel frame, pops after flash for 2s */}
-      {showPhoto && (
+      {/* Bottom 40%: map (zoomed on destination during photo) */}
+      <div
+        style={{
+          position: "absolute",
+          left: 0,
+          top: PHOTO_AREA_HEIGHT,
+          width: VIDEO_WIDTH,
+          height: MAP_AREA_HEIGHT,
+          overflow: "hidden",
+        }}
+      >
         <div
           style={{
-            position: "absolute",
-            inset: 0,
-            alignItems: "center",
-            justifyContent: "center",
-            display: "flex",
-            pointerEvents: "none",
+            width: WIDTH,
+            height: HEIGHT,
+            position: "relative",
+            transform: `translate(${-MAP_OFFSET_X}px, 0) scale(${MAP_SCALE})`,
+            transformOrigin: "0 0",
           }}
         >
           <div
             style={{
-              border: "4px solid #ec4899",
-              borderRadius: 16,
-              backgroundColor: "#FFF5F7",
-              padding: 8,
-              boxShadow: "4px 4px 0 0 rgba(0,0,0,0.2)",
+              width: WIDTH,
+              height: HEIGHT,
+              position: "relative",
+              transform: mapTransform,
+              transformOrigin: "0 0",
             }}
           >
-            <Img
-              src={photoSrc}
-              alt={toStop.location || "Stop"}
-              style={{
-                width: 280,
-                height: 210,
-                objectFit: "cover",
-                display: "block",
-                imageRendering: "pixelated",
-                filter: "contrast(1.1) brightness(1.1)",
-                borderRadius: 8,
-              }}
-            />
+            <WorldMapBackground />
+            <svg
+              width={WIDTH}
+              height={HEIGHT}
+              viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
+              style={{ display: "block", position: "relative", zIndex: 1 }}
+            >
+              <line
+                x1={x1}
+                y1={y1}
+                x2={xEnd}
+                y2={yEnd}
+                stroke="#9B7EDE"
+                strokeWidth={3}
+                strokeLinecap="round"
+              />
+              <circle cx={x1} cy={y1} r={6} fill="#6b21a8" />
+              <circle cx={x2} cy={y2} r={6} fill="#6b21a8" />
+            </svg>
+            {(phase === "travel" || (phase === "zoom" && zoomLocalFrame < 2)) && (
+              <div
+                style={{
+                  position: "absolute",
+                  left: Math.max(0, Math.min(WIDTH - 48, xEnd - 24)),
+                  top: Math.max(0, Math.min(HEIGHT - 48, yEnd - 24)),
+                  pointerEvents: "none",
+                  zIndex: 2,
+                  transform: `translateY(${5 * Math.sin(frame * 0.2)}px) rotate(${rotationDeg}deg) scale(${scaleX}, 1)`,
+                }}
+              >
+                <TravelHero transportType={currentTransport} width={48} height={48} />
+              </div>
+            )}
           </div>
         </div>
+      </div>
+
+      {/* Shutter: single flush (close only). Click plays at close; Audio here so it stays mounted at frame 110. */}
+      {!isArrivingAtStartingPoint && (
+        <Sequence
+          from={arrivalStartFrame + SHUTTER_CLOSE_FRAMES}
+          durationInFrames={60}
+          name="Shutter click"
+        >
+          <Audio src={staticFile("camera-click.mp3")} volume={0.8} />
+        </Sequence>
+      )}
+      {showShutterClose && (
+        <CameraShutter startFrame={arrivalStartFrame} height={VIDEO_HEIGHT} mode="close" />
       )}
     </AbsoluteFill>
   );

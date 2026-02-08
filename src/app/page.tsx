@@ -25,12 +25,12 @@ const INITIAL_STOPS: Stop[] = [
 ];
 
 const MAX_CHAPTERS = 30;
-const COMPOSITION_WIDTH = 800;
-const COMPOSITION_HEIGHT = 400;
+const COMPOSITION_WIDTH = 1080;
+const COMPOSITION_HEIGHT = 1920;
 const FPS = 30;
-// TravelVideo: intro (45) + per segment 120 frames + quest 90
+// TravelVideo: intro (45) + per segment 135 frames (50 travel + 85 arrival) + quest 90
 const INTRO_FRAMES = 45;
-const SEGMENT_FRAMES = 120;
+const SEGMENT_FRAMES = 135;
 const QUEST_FRAMES = 90;
 
 export default function Home() {

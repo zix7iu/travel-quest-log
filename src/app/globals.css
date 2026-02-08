@@ -21,3 +21,36 @@ body {
     transform: translateY(-4px);
   }
 }
+
+/* Shutter (lens blades) for Remotion CameraShutter - optional class-based use */
+.shutter-container {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 50;
+  pointer-events: none;
+}
+
+.shutter-blade {
+  flex: 1;
+  background-color: #1a1a1a;
+  width: 100%;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.shutter-top.closed {
+  transform: translateY(0);
+}
+
+.shutter-top.open {
+  transform: translateY(-100%);
+}
+
+.shutter-bottom.closed {
+  transform: translateY(0);
+}
+
+.shutter-bottom.open {
+  transform: translateY(100%);
+}
