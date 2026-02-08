@@ -23,20 +23,20 @@ import type { Stop } from "@/types/trip";
 const WORLD_ATLAS_URL =
   "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
-// 9:16 vertical format
+// 1:1 social-friendly
 const VIDEO_WIDTH = 1080;
-const VIDEO_HEIGHT = 1920;
+const VIDEO_HEIGHT = 1080;
 const PHOTO_AREA_HEIGHT = Math.floor(VIDEO_HEIGHT * 0.6); // top 60%
 const MAP_AREA_HEIGHT = VIDEO_HEIGHT - PHOTO_AREA_HEIGHT; // bottom 40%
 
-// Map logic: equirectangular 800x400 for lat/lng math
+// Map logic: equirectangular 800x400 for lat/lng math; scale to fill container (no white space)
 const WIDTH = 800;
 const HEIGHT = 400;
 const FPS = 30;
 const CENTER_X = WIDTH / 2;
 const CENTER_Y = HEIGHT / 2;
-const MAP_SCALE = MAP_AREA_HEIGHT / HEIGHT;
-const MAP_OFFSET_X = (WIDTH * MAP_SCALE - VIDEO_WIDTH) / 2;
+const MAP_COVER_SCALE = Math.max(VIDEO_WIDTH / WIDTH, MAP_AREA_HEIGHT / HEIGHT);
+const MAP_OFFSET_Y = (HEIGHT * MAP_COVER_SCALE - MAP_AREA_HEIGHT) / 2;
 
 // Intro: character waving at start
 const INTRO_FRAMES = 45;
@@ -192,42 +192,65 @@ export function TravelVideo({ stops }: TravelVideoProps) {
     );
   }
 
-  // Intro: character in cute frame waving at start
+  // Intro: character on map, no frame
   if (isIntro) {
     const bob = 4 * Math.sin(frame * 0.25);
+    const introMapScale = Math.max(VIDEO_WIDTH / WIDTH, VIDEO_HEIGHT / HEIGHT);
+    const introMapOffsetX = (WIDTH * introMapScale - VIDEO_WIDTH) / 2;
+    const introMapOffsetY = (HEIGHT * introMapScale - VIDEO_HEIGHT) / 2;
     return (
       <AbsoluteFill
         style={{
+          width: VIDEO_WIDTH,
+          height: VIDEO_HEIGHT,
           backgroundColor: "#FFF5F7",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 40,
+          overflow: "hidden",
         }}
       >
+        {/* Map background, scaled to fill */}
         <div
           style={{
-            border: "4px solid #1f2937",
-            backgroundColor: "rgba(232, 222, 255, 0.8)",
-            padding: 24,
-            boxShadow: "6px 6px 0 0 rgba(0,0,0,0.2)",
-            textAlign: "center",
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: WIDTH,
+            height: HEIGHT,
+            transform: `translate(${-introMapOffsetX}px, ${-introMapOffsetY}px) scale(${introMapScale})`,
+            transformOrigin: "0 0",
+          }}
+        >
+          <WorldMapBackground />
+        </div>
+        {/* Character ~30% of screen, no frame */}
+        <div
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            right: 0,
+            bottom: 0,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexDirection: "column",
           }}
         >
           <div style={{ transform: `translateY(${bob}px)` }}>
             <Img
               src={staticFile("character.png")}
               alt="Character waving"
-              width={120}
-              height={120}
-              style={{ objectFit: "contain", display: "block", margin: "0 auto" }}
+              width={Math.floor(VIDEO_WIDTH * 0.3)}
+              height={Math.floor(VIDEO_WIDTH * 0.3)}
+              style={{ objectFit: "contain", display: "block", margin: "0 auto", filter: "drop-shadow(2px 2px 4px rgba(0,0,0,0.3))" }}
             />
           </div>
           <p
             style={{
               fontFamily: "var(--font-press-start-2p), monospace",
-              fontSize: 10,
+              fontSize: 16,
               color: "#6b21a8",
-              marginTop: 16,
+              marginTop: 24,
+              textShadow: "1px 1px 0 #fff",
             }}
           >
             👋 Let&apos;s go!
@@ -237,34 +260,40 @@ export function TravelVideo({ stops }: TravelVideoProps) {
     );
   }
 
-  // Quest Complete (final screen) with character waving at end
+  // Quest Complete: full-screen layout, text and character scaled for 1:1
   if (phase === "quest") {
     const bob = 4 * Math.sin(localFrame * 0.2);
+    const questCharSize = Math.floor(VIDEO_WIDTH * 0.22); // ~22% of screen
     return (
       <AbsoluteFill
         style={{
+          width: VIDEO_WIDTH,
+          height: VIDEO_HEIGHT,
           backgroundColor: "#FFF5F7",
           alignItems: "center",
           justifyContent: "center",
-          padding: 40,
+          padding: 48,
+          boxSizing: "border-box",
         }}
       >
         <div
           style={{
             textAlign: "center",
-            maxWidth: 520,
-            padding: 32,
-            border: "4px solid #1f2937",
-            backgroundColor: "rgba(232, 222, 255, 0.6)",
-            borderRadius: 8,
+            width: "100%",
+            maxWidth: VIDEO_WIDTH,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 16,
           }}
         >
           <h2
             style={{
               fontFamily: "var(--font-press-start-2p), monospace",
-              fontSize: 14,
+              fontSize: 20,
               color: "#6b21a8",
-              marginBottom: 24,
+              margin: 0,
             }}
           >
             🏆 QUEST COMPLETE 🏆
@@ -272,9 +301,9 @@ export function TravelVideo({ stops }: TravelVideoProps) {
           <p
             style={{
               fontFamily: "var(--font-press-start-2p), monospace",
-              fontSize: 10,
+              fontSize: 14,
               color: "#4a3f5c",
-              marginBottom: 12,
+              margin: 0,
             }}
           >
             Total Distance Traveled: {totalDistanceMiles.toFixed(0)} Miles
@@ -282,52 +311,44 @@ export function TravelVideo({ stops }: TravelVideoProps) {
           <p
             style={{
               fontFamily: "var(--font-press-start-2p), monospace",
-              fontSize: 10,
+              fontSize: 14,
               color: "#4a3f5c",
-              marginBottom: 20,
+              margin: 0,
             }}
           >
             Time Elapsed: {daysElapsed} Days
           </p>
           <p
             style={{
-              fontSize: 12,
+              fontFamily: "var(--font-press-start-2p), monospace",
+              fontSize: 14,
               color: "#6b21a8",
               fontStyle: "italic",
-              lineHeight: 1.5,
-              marginBottom: 24,
+              lineHeight: 1.6,
+              margin: 0,
+              maxWidth: 900,
             }}
           >
             &ldquo;{quote}&rdquo;
           </p>
-          <div style={{ transform: `translateY(${bob}px)` }}>
-            <div
+          <div style={{ transform: `translateY(${bob}px)`, textAlign: "center", marginTop: 8 }}>
+            <Img
+              src={staticFile("character.png")}
+              alt="Character waving"
+              width={questCharSize}
+              height={questCharSize}
+              style={{ objectFit: "contain", display: "block", margin: "0 auto" }}
+            />
+            <p
               style={{
-                border: "4px solid #1f2937",
-                backgroundColor: "rgba(255,255,255,0.9)",
-                padding: 12,
-                display: "inline-block",
-                boxShadow: "4px 4px 0 0 rgba(0,0,0,0.2)",
+                fontFamily: "var(--font-press-start-2p), monospace",
+                fontSize: 12,
+                color: "#6b21a8",
+                marginTop: 12,
               }}
             >
-              <Img
-                src={staticFile("character.png")}
-                alt="Character waving"
-                width={80}
-                height={80}
-                style={{ objectFit: "contain", display: "block" }}
-              />
-              <p
-                style={{
-                  fontFamily: "var(--font-press-start-2p), monospace",
-                  fontSize: 8,
-                  color: "#6b21a8",
-                  marginTop: 8,
-                }}
-              >
-                👋 Thanks for playing!
-              </p>
-            </div>
+              👋 Thanks for playing!
+            </p>
           </div>
         </div>
       </AbsoluteFill>
@@ -443,7 +464,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
         overflow: "hidden",
       }}
     >
-      {/* Top 60%: pink banner + photo in heart-detail frame */}
+      {/* Top 60%: pink banner + photo (~80% width, minimal margins) */}
       <div
         style={{
           position: "absolute",
@@ -456,6 +477,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
           flexDirection: "column",
           alignItems: "center",
           justifyContent: "center",
+          padding: 0,
         }}
       >
         {showPhoto && (
@@ -467,7 +489,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
                 left: 0,
                 top: 0,
                 right: 0,
-                padding: "20px 24px",
+                padding: "12px 16px",
                 backgroundColor: "#ec4899",
                 borderBottom: "4px solid #1f2937",
                 zIndex: 2,
@@ -476,7 +498,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
               <p
                 style={{
                   fontFamily: "var(--font-press-start-2p), monospace",
-                  fontSize: 14,
+                  fontSize: 12,
                   color: "#fff",
                   margin: 0,
                   textAlign: "center",
@@ -489,9 +511,9 @@ export function TravelVideo({ stops }: TravelVideoProps) {
               <p
                 style={{
                   fontFamily: "var(--font-press-start-2p), monospace",
-                  fontSize: 10,
+                  fontSize: 8,
                   color: "#fff",
-                  margin: "8px 0 0",
+                  margin: "4px 0 0",
                   textAlign: "center",
                   textShadow: "2px 2px 0 #1a1a1a",
                 }}
@@ -500,41 +522,42 @@ export function TravelVideo({ stops }: TravelVideoProps) {
                 {dateVisibleChars < dateText.length && "|"}
               </p>
             </div>
-            {/* Photo: center in top 60%, heart-detail pixel frame */}
+            {/* Photo: ~80% screen width (864px), no thick outer margins */}
             <div
               style={{
                 flex: 1,
                 alignItems: "center",
                 justifyContent: "center",
                 display: "flex",
-                paddingTop: 100,
+                paddingTop: 48,
+                paddingLeft: 8,
+                paddingRight: 8,
+                width: "100%",
               }}
             >
               <div
                 style={{
-                  border: "4px solid #ec4899",
-                  borderRadius: 16,
-                  backgroundColor: "#FFF5F7",
-                  padding: 12,
-                  boxShadow: "4px 4px 0 0 rgba(0,0,0,0.2)",
+                  width: Math.floor(VIDEO_WIDTH * 0.8),
+                  maxWidth: "100%",
                   position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
-                <span style={{ position: "absolute", left: 8, top: 8, fontSize: 14, color: "#ec4899" }}>♥</span>
-                <span style={{ position: "absolute", right: 8, top: 8, fontSize: 14, color: "#ec4899" }}>♥</span>
-                <span style={{ position: "absolute", left: 8, bottom: 8, fontSize: 14, color: "#ec4899" }}>♥</span>
-                <span style={{ position: "absolute", right: 8, bottom: 8, fontSize: 14, color: "#ec4899" }}>♥</span>
                 <Img
                   src={photoSrc}
                   alt={toStop.location || "Stop"}
                   style={{
-                    width: 400,
-                    height: 300,
+                    width: "100%",
+                    aspectRatio: "4/3",
                     objectFit: "cover",
                     display: "block",
                     imageRendering: "pixelated",
                     filter: "contrast(1.1) brightness(1.1)",
                     borderRadius: 8,
+                    border: "3px solid #ec4899",
+                    boxShadow: "2px 2px 0 0 rgba(0,0,0,0.15)",
                   }}
                 />
               </div>
@@ -543,7 +566,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
         )}
       </div>
 
-      {/* Bottom 40%: map (zoomed on destination during photo) */}
+      {/* Bottom 40%: map fills container (no white space) */}
       <div
         style={{
           position: "absolute",
@@ -559,7 +582,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
             width: WIDTH,
             height: HEIGHT,
             position: "relative",
-            transform: `translate(${-MAP_OFFSET_X}px, 0) scale(${MAP_SCALE})`,
+            transform: `translate(0, ${-MAP_OFFSET_Y}px) scale(${MAP_COVER_SCALE})`,
             transformOrigin: "0 0",
           }}
         >

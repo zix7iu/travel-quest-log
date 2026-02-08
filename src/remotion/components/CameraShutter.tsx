@@ -20,7 +20,7 @@ interface CameraShutterProps {
  * Open: blades retract (10 frames) to reveal next segment.
  * Sound: public/camera-click.mp3 plays at the moment the shutter fully closes.
  */
-export function CameraShutter({ startFrame, height = 1920, mode }: CameraShutterProps) {
+export function CameraShutter({ startFrame, height = 1080, mode }: CameraShutterProps) {
   const frame = useCurrentFrame();
   const t = frame - startFrame;
   const halfHeight = height / 2;

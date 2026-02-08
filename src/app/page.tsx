@@ -26,7 +26,7 @@ const INITIAL_STOPS: Stop[] = [
 
 const MAX_CHAPTERS = 30;
 const COMPOSITION_WIDTH = 1080;
-const COMPOSITION_HEIGHT = 1920;
+const COMPOSITION_HEIGHT = 1080; // 1:1 social-friendly
 const FPS = 30;
 // TravelVideo: intro (45) + per segment 135 frames (50 travel + 85 arrival) + quest 90
 const INTRO_FRAMES = 45;
