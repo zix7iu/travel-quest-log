@@ -35,8 +35,17 @@ const HEIGHT = 400;
 const FPS = 30;
 const CENTER_X = WIDTH / 2;
 const CENTER_Y = HEIGHT / 2;
-const MAP_COVER_SCALE = Math.max(VIDEO_WIDTH / WIDTH, MAP_AREA_HEIGHT / HEIGHT);
-const MAP_OFFSET_Y = (HEIGHT * MAP_COVER_SCALE - MAP_AREA_HEIGHT) / 2;
+const MAP_ZOOM = 2; // Camera follow: zoomed map feels bigger; pan keeps hero centered
+// Hero in lower 40% so photo overlay doesn't cover transport icon
+const VIEW_CENTER_Y = HEIGHT * 0.8;
+// Full 1:1 cover: map fills entire window (object-fit: cover style)
+const MAP_COVER_SCALE = Math.max(VIDEO_WIDTH / WIDTH, VIDEO_HEIGHT / HEIGHT);
+const MAP_COVER_OFFSET_X = (WIDTH * MAP_COVER_SCALE - VIDEO_WIDTH) / 2;
+const MAP_COVER_OFFSET_Y = (HEIGHT * MAP_COVER_SCALE - VIDEO_HEIGHT) / 2;
+// Transport icon (20% bigger than 22)
+const HERO_SIZE = 26;
+// Map stop circles (used in SVG below; 4 = ~30% smaller than original 6)
+const MAP_PIN_R = 4;
 
 // Intro: character waving at start
 const INTRO_FRAMES = 45;
@@ -247,7 +256,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
           <p
             style={{
               fontFamily: "var(--font-press-start-2p), monospace",
-              fontSize: 16,
+              fontSize: 32,
               color: "#6b21a8",
               marginTop: 24,
               textShadow: "1px 1px 0 #fff",
@@ -260,10 +269,10 @@ export function TravelVideo({ stops }: TravelVideoProps) {
     );
   }
 
-  // Quest Complete: full-screen layout, text and character scaled for 1:1
+  // Quest Complete: everything 30% bigger (text and character)
   if (phase === "quest") {
     const bob = 4 * Math.sin(localFrame * 0.2);
-    const questCharSize = Math.floor(VIDEO_WIDTH * 0.22); // ~22% of screen
+    const questCharSize = Math.floor(VIDEO_WIDTH * 0.286); // ~22% * 1.3
     return (
       <AbsoluteFill
         style={{
@@ -285,13 +294,13 @@ export function TravelVideo({ stops }: TravelVideoProps) {
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
-            gap: 16,
+            gap: 21,
           }}
         >
           <h2
             style={{
               fontFamily: "var(--font-press-start-2p), monospace",
-              fontSize: 20,
+              fontSize: 26,
               color: "#6b21a8",
               margin: 0,
             }}
@@ -301,7 +310,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
           <p
             style={{
               fontFamily: "var(--font-press-start-2p), monospace",
-              fontSize: 14,
+              fontSize: 18,
               color: "#4a3f5c",
               margin: 0,
             }}
@@ -311,7 +320,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
           <p
             style={{
               fontFamily: "var(--font-press-start-2p), monospace",
-              fontSize: 14,
+              fontSize: 18,
               color: "#4a3f5c",
               margin: 0,
             }}
@@ -321,7 +330,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
           <p
             style={{
               fontFamily: "var(--font-press-start-2p), monospace",
-              fontSize: 14,
+              fontSize: 18,
               color: "#6b21a8",
               fontStyle: "italic",
               lineHeight: 1.6,
@@ -331,7 +340,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
           >
             &ldquo;{quote}&rdquo;
           </p>
-          <div style={{ transform: `translateY(${bob}px)`, textAlign: "center", marginTop: 8 }}>
+          <div style={{ transform: `translateY(${bob}px)`, textAlign: "center", marginTop: 10 }}>
             <Img
               src={staticFile("character.png")}
               alt="Character waving"
@@ -342,9 +351,9 @@ export function TravelVideo({ stops }: TravelVideoProps) {
             <p
               style={{
                 fontFamily: "var(--font-press-start-2p), monospace",
-                fontSize: 12,
+                fontSize: 16,
                 color: "#6b21a8",
-                marginTop: 12,
+                marginTop: 16,
               }}
             >
               👋 Thanks for playing!
@@ -381,28 +390,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
     INTRO_FRAMES + segmentIndex * SEGMENT_FRAMES + TRAVEL_FRAMES;
   const zoomLocalFrame = frame - arrivalStartFrame;
 
-  const travelScale = 1.5;
-  const arrivalScale = 2.5;
-  const travelZoomIn = spring({
-    frame: localFrame,
-    fps: FPS,
-    from: 1,
-    to: travelScale,
-    durationInFrames: 15,
-    config: { damping: 24, mass: 0.6 },
-  });
-  const scale =
-    phase === "travel"
-      ? travelZoomIn
-      : phase === "zoom"
-        ? interpolate(
-            zoomLocalFrame,
-            [0, SHUTTER_CLOSE_FRAMES],
-            [travelScale, arrivalScale],
-            { extrapolateRight: "clamp", extrapolateLeft: "clamp" }
-          )
-        : arrivalScale;
-
+  // Camera follow: pan so transport icon (hero) is always roughly centered
   const centerX =
     phase === "travel"
       ? xEnd
@@ -426,7 +414,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
           )
         : y2;
 
-  const mapTransform = `translate(${CENTER_X}px, ${CENTER_Y}px) scale(${scale}) translate(${-centerX}px, ${-centerY}px)`;
+  const mapTransform = `translate(${CENTER_X}px, ${VIEW_CENTER_Y}px) scale(${MAP_ZOOM}) translate(${-centerX}px, ${-centerY}px)`;
 
   // Transport for this segment = how the user got TO the destination (toStop)
   const currentTransport = (toStop.transport ?? "plane").toLowerCase();
@@ -445,10 +433,6 @@ export function TravelVideo({ stops }: TravelVideoProps) {
     destinationText.length,
     Math.floor(interpolate(typewriterFrame, [0, 35], [0, destinationText.length + 1], { extrapolateRight: "clamp", extrapolateLeft: "clamp" }))
   );
-  const dateVisibleChars = Math.min(
-    dateText.length,
-    Math.floor(interpolate(typewriterFrame, [35, 55], [0, dateText.length + 1], { extrapolateRight: "clamp", extrapolateLeft: "clamp" }))
-  );
   const bearing = bearingDeg(x1, y1, x2, y2);
   const isLeftHemisphere =
     (bearing > 90 && bearing <= 180) || (bearing >= -180 && bearing < -90);
@@ -464,125 +448,23 @@ export function TravelVideo({ stops }: TravelVideoProps) {
         overflow: "hidden",
       }}
     >
-      {/* Top 60%: pink banner + photo (~80% width, minimal margins) */}
+      {/* Full-screen map: inset 0, cover scaling so map fills 1:1 window completely */}
       <div
         style={{
           position: "absolute",
-          left: 0,
-          top: 0,
-          width: VIDEO_WIDTH,
-          height: PHOTO_AREA_HEIGHT,
-          backgroundColor: "#FFF5F7",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: 0,
-        }}
-      >
-        {showPhoto && (
-          <>
-            {/* Pink pixel-art banner: Destination + Date, typewriter from 0.5s */}
-            <div
-              style={{
-                position: "absolute",
-                left: 0,
-                top: 0,
-                right: 0,
-                padding: "12px 16px",
-                backgroundColor: "#ec4899",
-                borderBottom: "4px solid #1f2937",
-                zIndex: 2,
-              }}
-            >
-              <p
-                style={{
-                  fontFamily: "var(--font-press-start-2p), monospace",
-                  fontSize: 12,
-                  color: "#fff",
-                  margin: 0,
-                  textAlign: "center",
-                  textShadow: "2px 2px 0 #1a1a1a",
-                }}
-              >
-                {destinationText.slice(0, destVisibleChars)}
-                {destVisibleChars < destinationText.length && "|"}
-              </p>
-              <p
-                style={{
-                  fontFamily: "var(--font-press-start-2p), monospace",
-                  fontSize: 8,
-                  color: "#fff",
-                  margin: "4px 0 0",
-                  textAlign: "center",
-                  textShadow: "2px 2px 0 #1a1a1a",
-                }}
-              >
-                {dateText.slice(0, dateVisibleChars)}
-                {dateVisibleChars < dateText.length && "|"}
-              </p>
-            </div>
-            {/* Photo: ~80% screen width (864px), no thick outer margins */}
-            <div
-              style={{
-                flex: 1,
-                alignItems: "center",
-                justifyContent: "center",
-                display: "flex",
-                paddingTop: 48,
-                paddingLeft: 8,
-                paddingRight: 8,
-                width: "100%",
-              }}
-            >
-              <div
-                style={{
-                  width: Math.floor(VIDEO_WIDTH * 0.8),
-                  maxWidth: "100%",
-                  position: "relative",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <Img
-                  src={photoSrc}
-                  alt={toStop.location || "Stop"}
-                  style={{
-                    width: "100%",
-                    aspectRatio: "4/3",
-                    objectFit: "cover",
-                    display: "block",
-                    imageRendering: "pixelated",
-                    filter: "contrast(1.1) brightness(1.1)",
-                    borderRadius: 8,
-                    border: "3px solid #ec4899",
-                    boxShadow: "2px 2px 0 0 rgba(0,0,0,0.15)",
-                  }}
-                />
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-
-      {/* Bottom 40%: map fills container (no white space) */}
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: PHOTO_AREA_HEIGHT,
-          width: VIDEO_WIDTH,
-          height: MAP_AREA_HEIGHT,
+          inset: 0,
           overflow: "hidden",
+          zIndex: 0,
         }}
       >
         <div
           style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
             width: WIDTH,
             height: HEIGHT,
-            position: "relative",
-            transform: `translate(0, ${-MAP_OFFSET_Y}px) scale(${MAP_COVER_SCALE})`,
+            transform: `translate(${-MAP_COVER_OFFSET_X}px, ${-MAP_COVER_OFFSET_Y}px) scale(${MAP_COVER_SCALE})`,
             transformOrigin: "0 0",
           }}
         >
@@ -611,26 +493,124 @@ export function TravelVideo({ stops }: TravelVideoProps) {
                 strokeWidth={3}
                 strokeLinecap="round"
               />
-              <circle cx={x1} cy={y1} r={6} fill="#6b21a8" />
-              <circle cx={x2} cy={y2} r={6} fill="#6b21a8" />
+              <circle cx={x1} cy={y1} r={MAP_PIN_R} fill="#6b21a8" />
+              <circle cx={x2} cy={y2} r={MAP_PIN_R} fill="#6b21a8" />
             </svg>
             {(phase === "travel" || (phase === "zoom" && zoomLocalFrame < 2)) && (
               <div
                 style={{
                   position: "absolute",
-                  left: Math.max(0, Math.min(WIDTH - 48, xEnd - 24)),
-                  top: Math.max(0, Math.min(HEIGHT - 48, yEnd - 24)),
+                  left: Math.max(0, Math.min(WIDTH - HERO_SIZE, xEnd - HERO_SIZE / 2)),
+                  top: Math.max(0, Math.min(HEIGHT - HERO_SIZE, yEnd - HERO_SIZE / 2)),
                   pointerEvents: "none",
                   zIndex: 2,
                   transform: `translateY(${5 * Math.sin(frame * 0.2)}px) rotate(${rotationDeg}deg) scale(${scaleX}, 1)`,
                 }}
               >
-                <TravelHero transportType={currentTransport} width={48} height={48} />
+                <TravelHero transportType={currentTransport} width={HERO_SIZE} height={HERO_SIZE} />
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Photo overlay on map: card covers on map when at destination (no solid panel) */}
+      {showPhoto && (
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            zIndex: 10,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "flex-start",
+            paddingTop: Math.floor(VIDEO_HEIGHT * 0.06),
+            paddingLeft: Math.floor(VIDEO_WIDTH * 0.08),
+            paddingRight: Math.floor(VIDEO_WIDTH * 0.08),
+            boxSizing: "border-box",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: Math.floor(VIDEO_WIDTH * 0.84),
+              backgroundColor: "rgba(255, 245, 247, 0.97)",
+              borderRadius: 12,
+              border: "3px solid #ec4899",
+              boxShadow: "4px 4px 0 0 rgba(0,0,0,0.2)",
+              overflow: "hidden",
+            }}
+          >
+            {/* Banner: destination name 30% bigger, taller accordingly */}
+            <div
+              style={{
+                padding: "14px 18px",
+                backgroundColor: "#ec4899",
+                borderBottom: "3px solid #1f2937",
+              }}
+            >
+              <p
+                style={{
+                  fontFamily: "var(--font-press-start-2p), monospace",
+                  fontSize: 18,
+                  color: "#fff",
+                  margin: 0,
+                  textAlign: "center",
+                  textShadow: "2px 2px 0 #1a1a1a",
+                }}
+              >
+                {destinationText.slice(0, destVisibleChars)}
+                {destVisibleChars < destinationText.length && "|"}
+              </p>
+            </div>
+            <div style={{ padding: 10, position: "relative" }}>
+              <Img
+                src={photoSrc}
+                alt={toStop.location || "Stop"}
+                style={{
+                  width: "100%",
+                  aspectRatio: "4/3",
+                  objectFit: "cover",
+                  display: "block",
+                  imageRendering: "pixelated",
+                  filter: "contrast(1.1) brightness(1.1)",
+                  borderRadius: 8,
+                }}
+              />
+              {/* Date tag: top layer, high contrast so always visible */}
+              <div
+                style={{
+                  position: "absolute",
+                  left: 14,
+                  bottom: 14,
+                  zIndex: 30,
+                  padding: "8px 12px",
+                  backgroundColor: "#fff",
+                  border: "2px solid #1f2937",
+                  borderRadius: 4,
+                  boxShadow: "2px 2px 0 rgba(0,0,0,0.25)",
+                  isolation: "isolate",
+                }}
+              >
+                <p
+                  style={{
+                    fontFamily: "var(--font-press-start-2p), monospace",
+                    fontSize: 14,
+                    color: "#000",
+                    margin: 0,
+                    lineHeight: 1.2,
+                    opacity: 1,
+                  }}
+                >
+                  {dateText ? dateText : "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Shutter: single flush (close only). Click plays at close; Audio here so it stays mounted at frame 110. */}
       {!isArrivingAtStartingPoint && (

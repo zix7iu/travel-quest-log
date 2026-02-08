@@ -2,8 +2,6 @@
 
 import type { Stop } from "@/types/trip";
 
-const MAX_STOPS_DISPLAY = 30;
-
 interface ShareCardProps {
   stops: Stop[];
   onClose: () => void;
@@ -40,17 +38,17 @@ export function ShareCard({
             id="share-modal-title"
             className="font-pixel text-xs text-lavender-500 mb-3"
           >
-            🏆 TRAVEL POSTER 🏆
+            TRAVEL RECORDS
           </h2>
           <p className="font-pixel text-[10px] text-lavender-500 mb-2">
-            CHAPTERS COMPLETED: {totalStops} / {MAX_STOPS_DISPLAY}
+            CHAPTERS COMPLETED: {totalStops}
           </p>
           {locationsWithNames.length > 0 && (
-            <div className="text-left mb-3">
+            <div className="text-center mb-3">
               <p className="font-pixel text-[8px] text-lavender-400 mb-1">
                 YOUR ROUTE:
               </p>
-              <ul className="text-xs text-lavender-500 space-y-0.5">
+              <ul className="text-xs text-lavender-500 space-y-0.5 list-none flex flex-col items-center px-0">
                 {locationsWithNames.slice(0, 8).map((name, i) => (
                   <li key={i}>• {name || "(unnamed)"}</li>
                 ))}
