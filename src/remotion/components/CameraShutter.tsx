@@ -4,7 +4,6 @@ import { useCurrentFrame, interpolate, AbsoluteFill } from "remotion";
 
 const CLOSE_FRAMES = 15; // 0.5s
 const OPEN_FRAMES = 10;
-const CLICK_AT_FRAME = 15; // at moment shutter fully closed
 
 interface CameraShutterProps {
   /** Composition frame when the shutter animation starts. */

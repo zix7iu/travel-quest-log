@@ -3,7 +3,6 @@
 import {
   useCurrentFrame,
   interpolate,
-  spring,
   AbsoluteFill,
   Img,
   staticFile,
@@ -26,15 +25,11 @@ const WORLD_ATLAS_URL =
 // 1:1 social-friendly
 const VIDEO_WIDTH = 1080;
 const VIDEO_HEIGHT = 1080;
-const PHOTO_AREA_HEIGHT = Math.floor(VIDEO_HEIGHT * 0.6); // top 60%
-const MAP_AREA_HEIGHT = VIDEO_HEIGHT - PHOTO_AREA_HEIGHT; // bottom 40%
 
 // Map logic: equirectangular 800x400 for lat/lng math; scale to fill container (no white space)
 const WIDTH = 800;
 const HEIGHT = 400;
-const FPS = 30;
 const CENTER_X = WIDTH / 2;
-const CENTER_Y = HEIGHT / 2;
 const MAP_ZOOM = 2; // Camera follow: zoomed map feels bigger; pan keeps hero centered
 // Hero in lower 40% so photo overlay doesn't cover transport icon
 const VIEW_CENTER_Y = HEIGHT * 0.8;
@@ -56,7 +51,6 @@ const PHOTO_FRAMES = 60; // 2s
 const SHUTTER_OPEN_FRAMES = 10;
 const ARRIVAL_FRAMES = SHUTTER_CLOSE_FRAMES + PHOTO_FRAMES + SHUTTER_OPEN_FRAMES; // 85
 const SEGMENT_FRAMES = TRAVEL_FRAMES + ARRIVAL_FRAMES;
-const QUEST_FRAMES = 90;
 // Default scenery when user hasn't uploaded a photo for a stop
 const DEFAULT_SCENERY = staticFile("default-scenery.png");
 
@@ -171,7 +165,7 @@ export function TravelVideo({ stops }: TravelVideoProps) {
   const K = stopsWithCoords.length;
   const segmentCount = Math.max(0, K - 1);
   const isIntro = frame < INTRO_FRAMES;
-  const { phase, segmentIndex, localFrame, arrivalLocalFrame, questStartFrame } = getPhase(
+  const { phase, segmentIndex, localFrame, arrivalLocalFrame } = getPhase(
     frame,
     segmentCount
   );

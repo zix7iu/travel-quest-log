@@ -358,6 +358,7 @@ function StopRow({
           </div>
           {stop.image && (
             <div className="shrink-0 rounded-none border-[4px] border-black bg-lavender-100 p-0.5 shadow-pixel-sm overflow-hidden">
+              {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded blob/data URL */}
               <img
                 src={stop.image}
                 alt="Stop photo"
