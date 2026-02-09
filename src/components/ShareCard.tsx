@@ -38,7 +38,7 @@ export function ShareCard({
             id="share-modal-title"
             className="font-pixel text-xs text-lavender-500 mb-3"
           >
-            TRAVEL RECORDS
+            🏆 TRAVEL RECORDS 🏆
           </h2>
           <p className="font-pixel text-[10px] text-lavender-500 mb-2">
             CHAPTERS COMPLETED: {totalStops}
